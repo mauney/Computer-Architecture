@@ -31,10 +31,7 @@ class CPU:
         address = 0
 
         with open(program, 'r') as f:
-            while True:
-                line = f.readline()
-                if not line:
-                    break
+            for line in f:
                 # drop the '\n'
                 instruction = line.strip()
                 # strip out the comment, if any
