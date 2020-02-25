@@ -2,34 +2,47 @@
 
 import sys
 
+HLT = 0b00000001
+LDI = 0b10000010
+PRN = 0b01000111
+
 
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        # pc represents the Program Counter
+        self.pc = 0
+        # reg represents the eight general purpose registers
+        self.reg = [0] * 8
+        # ram represents 256 bytes of random access memory
+        self.ram = [0] * 256
 
-    def load(self):
+    def ram_read(self, MAR):
+        return self.ram[MAR]
+
+    def ram_write(self, MDR, MAR):
+        self.ram[MAR] = MDR
+
+    def load(self, program):
         """Load a program into memory."""
 
         address = 0
 
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010,  # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111,  # PRN R0
-            0b00000000,
-            0b00000001,  # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        with open(program, 'r') as f:
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                # drop the '\n'
+                instruction = line.strip()
+                # strip out the comment, if any
+                instruction = instruction.partition('#')[0]
+                if instruction == '':
+                    continue
+                self.ram[address] = int(instruction, base=2)
+                address += 1
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
@@ -62,4 +75,21 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        while True:
+            # ir represents the Instruction Register
+            ir = self.ram_read(self.pc)
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+
+            if ir == LDI:
+                self.reg[operand_a] = operand_b
+                self.pc += 3
+            elif ir == PRN:
+                num = self.reg[operand_a]
+                print(num)
+                self.pc += 2
+            elif ir == HLT:
+                sys.exit(0)
+            else:
+                print(f"I did not understand that ir: {ir}")
+                sys.exit(1)
