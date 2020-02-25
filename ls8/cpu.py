@@ -4,6 +4,7 @@ import sys
 
 HLT = 0b00000001
 LDI = 0b10000010
+MUL = 0b10100010
 PRN = 0b01000111
 
 
@@ -43,9 +44,14 @@ class CPU:
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
+        # N.B. enforce 8-bit maximum value with ... & 0xFF
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
+            elf.reg[reg_a] = self.reg[reg_a] & 0xFF
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+            self.reg[reg_a] = self.reg[reg_a] & 0xFF
         # elif op == "SUB": etc
         else:
             raise Exception("Unsupported ALU operation")
@@ -80,6 +86,9 @@ class CPU:
 
             if ir == LDI:
                 self.reg[operand_a] = operand_b
+                self.pc += 3
+            elif ir == MUL:
+                self.alu('MUL', operand_a, operand_b)
                 self.pc += 3
             elif ir == PRN:
                 num = self.reg[operand_a]
