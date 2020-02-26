@@ -7,10 +7,10 @@ ADD = 0b10100000  # 0
 # AND  = 0b10101000  # 8
 CALL = 0b01010000  # 0
 # CMP  = 0b10100111  # 7
-# DEC  = 0b01100110  # 6
+DEC  = 0b01100110  # 6
 # DIV  = 0b10100011  # 3
 HLT = 0b00000001  # 1
-# INC  = 0b01100101  # 5
+INC  = 0b01100101  # 5
 # INT  = 0b01010010  # 2
 # IRET = 0b00010011  # 3
 # JEQ  = 0b01010101  # 5
@@ -38,6 +38,9 @@ ST = 0b10000100  # 4
 # SUB  = 0b10100001  # 1
 # XOR  = 0b10101011  # 11
 
+# Other constants
+SP = 7  # the stack pointer is stored in the register at index 7
+
 
 class CPU:
     """Main CPU class."""
@@ -48,10 +51,10 @@ class CPU:
         self.ir = None
         # pc represents the Program Counter
         self.pc = 0
-        # initialize the stack pointer
-        self.sp = 0xF4
         # reg represents the eight general purpose registers
         self.reg = [0] * 8
+        # initialize the stack pointer
+        self.reg[SP] = 0xF4
         # ram represents 256 bytes of random access memory
         self.ram = [0] * 256
         # operands
@@ -61,8 +64,10 @@ class CPU:
         # branch table
         self.branchtable = {
             ADD:  self.add,
+            DEC:  self.dec,
             CALL: self.call,
             HLT:  self.hlt,
+            INC:  self.inc,
             JMP:  self.jmp,
             LDI:  self.ldi,
             MUL:  self.mul,
@@ -109,13 +114,19 @@ class CPU:
 
     def call(self):
         # push pc + 2 onto the stack
-        self.sp -= 1
-        self.ram[self.sp] = self.pc + 2
+        self.reg[SP] -= 1
+        self.ram[self.reg[SP]] = self.pc + 2
         # jump to value stored in register
         self.jmp()
 
+    def dec(self):
+        self.alu('DEC', self.operand_a)
+
     def hlt(self):
         sys.exit(0)
+
+    def inc(self):
+        self.alu('INC', self.operand_a)
 
     def jmp(self):
         # set pc to value stored in register
@@ -128,41 +139,45 @@ class CPU:
         self.alu('MUL', self.operand_a, self.operand_b)
 
     def pop(self):
-        if self.sp > 0xF3:
+        if self.reg[SP] > 0xF3:
             print('Error: the stack is empty')
             sys.exit(3)
         else:
-            self.reg[self.operand_a] = self.ram[self.sp]
-            self.sp += 1
+            self.reg[self.operand_a] = self.ram[self.reg[SP]]
+            self.reg[SP] += 1
 
     def prn(self):
         print(self.reg[self.operand_a])
 
     def push(self):
         # move to the next position in the stack
-        self.sp -= 1
+        self.reg[SP] -= 1
         # assign the value
-        self.ram[self.sp] = self.reg[self.operand_a]
+        self.ram[self.reg[SP]] = self.reg[self.operand_a]
 
     def ret(self):
-        self.pc = self.ram[self.sp]
+        self.pc = self.ram[self.reg[SP]]
 
     def st(self):
         # Store value in regB location to ram location indicated by regA value
         self.ram[self.reg[self.operand_a]] = self.reg[self.operand_b]
 
-    def alu(self, op, reg_a, reg_b):
+    def alu(self, op, reg_a, reg_b=None):
         """ALU operations."""
-        # Enforce 8-bit max value with last line of each statement: ...& 0xFF
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-            self.reg[reg_a] = self.reg[reg_a] & 0xFF
+        elif op == "DEC":
+            self.reg[reg_a] -= 1
+        elif op == "INC":
+            self.reg[reg_a] += 1
         elif op == "MUL":
             self.reg[reg_a] *= self.reg[reg_b]
-            self.reg[reg_a] = self.reg[reg_a] & 0xFF
         # elif op == "SUB": etc
         else:
             raise Exception("Unsupported ALU operation")
+        # Some alu operations may set a value outside of our LS8's 8-bit range
+        # Mask any potentially changed value with OxFF to enforce 8-bit limit
+        self.reg[reg_a] = self.reg[reg_a] & 0xFF
 
     # Debug method
 
