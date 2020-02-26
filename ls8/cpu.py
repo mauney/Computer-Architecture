@@ -3,39 +3,39 @@
 import sys
 
 # Instructions
-ADD  = 0b10100000  #  0
-# AND  = 0b10101000  #  8
-CALL = 0b01010000  #  0
-# CMP  = 0b10100111  #  7
-# DEC  = 0b01100110  #  6
-# DIV  = 0b10100011  #  3
-HLT  = 0b00000001  #  1
-# INC  = 0b01100101  #  5
-# INT  = 0b01010010  #  2
-# IRET = 0b00010011  #  3
-# JEQ  = 0b01010101  #  5
+ADD = 0b10100000  # 0
+# AND  = 0b10101000  # 8
+CALL = 0b01010000  # 0
+# CMP  = 0b10100111  # 7
+# DEC  = 0b01100110  # 6
+# DIV  = 0b10100011  # 3
+HLT = 0b00000001  # 1
+# INC  = 0b01100101  # 5
+# INT  = 0b01010010  # 2
+# IRET = 0b00010011  # 3
+# JEQ  = 0b01010101  # 5
 # JGE  = 0b01011010  # 10
-# JGT  = 0b01010111  #  7
-# JLE  = 0b01011001  #  9
-# JLT  = 0b01011000  #  8
-JMP  = 0b01010100  #  4
-# JNE  = 0b01010110  #  6
-# LD   = 0b10000011  #  3
-LDI  = 0b10000010  #  2
-# MOD  = 0b10100100  #  4
-MUL  = 0b10100010  #  2
-# NOP  = 0b00000000  #  0
-# NOT  = 0b01101001  #  9
+# JGT  = 0b01010111  # 7
+# JLE  = 0b01011001  # 9
+# JLT  = 0b01011000  # 8
+JMP = 0b01010100  # 4
+# JNE  = 0b01010110  # 6
+# LD   = 0b10000011  # 3
+LDI = 0b10000010  # 2
+# MOD  = 0b10100100  # 4
+MUL = 0b10100010  # 2
+# NOP  = 0b00000000  # 0
+# NOT  = 0b01101001  # 9
 # OR   = 0b10101010  # 10
-POP  = 0b01000110  #  6
-# PRA  = 0b01001000  #  8
-PRN  = 0b01000111  #  7
-PUSH = 0b01000101  #  5
-RET  = 0b00010001  #  1
+POP = 0b01000110  # 6
+# PRA  = 0b01001000  # 8
+PRN = 0b01000111  # 7
+PUSH = 0b01000101  # 5
+RET = 0b00010001  # 1
 # SHL  = 0b10101100  # 12
 # SHR  = 0b10101101  # 13
-# ST   = 0b10000100  #  4
-# SUB  = 0b10100001  #  1
+# ST   = 0b10000100  # 4
+# SUB  = 0b10100001  # 1
 # XOR  = 0b10101011  # 11
 
 
@@ -78,8 +78,28 @@ class CPU:
     def ram_write(self, MDR, MAR):
         self.ram[MAR] = MDR
 
+    def set_operands(self):
+        self.num_operands = self.ir >> 6
+        if self.num_operands == 1:
+            self.operand_a = self.ram_read(self.pc + 1)
+        elif self.num_operands == 2:
+            self.operand_a = self.ram_read(self.pc + 1)
+            self.operand_b = self.ram_read(self.pc + 2)
+
+    def invoke_instruction(self):
+        if self.ir in self.branchtable:
+            self.branchtable[self.ir]()
+        else:
+            print(f"I did not understand that ir: {self.ir:b}")
+            sys.exit(1)
+
     def move_pc(self):
-        self.pc += (self.num_operands + 1)
+        # grab the fifth digit of the ir
+        ir_sets_pc = ((self.ir << 3) & 255) >> 7
+        if not ir_sets_pc:
+            self.pc += (self.num_operands + 1)
+
+    # Instruction methods
 
     def add(self):
         self.alu('ADD', self.operand_a, self.operand_b)
@@ -88,12 +108,14 @@ class CPU:
         # push pc + 2 onto the stack
         self.sp -= 1
         self.ram[self.sp] = self.pc + 2
-        self.pc = self.reg[self.operand_a]
+        # jump to value stored in register
+        self.jmp()
 
     def hlt(self):
         sys.exit(0)
 
     def jmp(self):
+        # set pc to value stored in register
         self.pc = self.reg[self.operand_a]
 
     def ldi(self):
@@ -122,6 +144,19 @@ class CPU:
     def ret(self):
         self.pc = self.ram[self.sp]
 
+    def alu(self, op, reg_a, reg_b):
+        """ALU operations."""
+        # Enforce 8-bit max value with last line of each statement: ...& 0xFF
+        if op == "ADD":
+            self.reg[reg_a] += self.reg[reg_b]
+            self.reg[reg_a] = self.reg[reg_a] & 0xFF
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+            self.reg[reg_a] = self.reg[reg_a] & 0xFF
+        # elif op == "SUB": etc
+        else:
+            raise Exception("Unsupported ALU operation")
+
     def load(self, program):
         """Load a program into memory."""
 
@@ -140,19 +175,6 @@ class CPU:
         except FileNotFoundError:
             print(f'File not found. path: {program}')
             sys.exit(2)
-
-    def alu(self, op, reg_a, reg_b):
-        """ALU operations."""
-        # Enforce 8-bit max value with last line of each statement: ...& 0xFF
-        if op == "ADD":
-            self.reg[reg_a] += self.reg[reg_b]
-            self.reg[reg_a] = self.reg[reg_a] & 0xFF
-        elif op == "MUL":
-            self.reg[reg_a] *= self.reg[reg_b]
-            self.reg[reg_a] = self.reg[reg_a] & 0xFF
-        # elif op == "SUB": etc
-        else:
-            raise Exception("Unsupported ALU operation")
 
     def trace(self):
         """
@@ -177,23 +199,7 @@ class CPU:
     def run(self):
         """Run the CPU."""
         while True:
-            # ir represents the Instruction Register
             self.ir = self.ram_read(self.pc)
-
-            self.num_operands = self.ir >> 6
-            if self.num_operands == 1:
-                self.operand_a = self.ram_read(self.pc + 1)
-            elif self.num_operands == 2:
-                self.operand_a = self.ram_read(self.pc + 1)
-                self.operand_b = self.ram_read(self.pc + 2)
-
-            if self.ir in self.branchtable:
-                self.branchtable[self.ir]()
-            else:
-                print(f"I did not understand that ir: {self.ir:b}")
-                sys.exit(1)
-
-            # grab the fifth digit of the ir
-            ir_sets_pc = ((self.ir << 3) & 255) >> 7
-            if not ir_sets_pc:
-                self.move_pc()
+            self.set_operands()
+            self.invoke_instruction()
+            self.move_pc()
