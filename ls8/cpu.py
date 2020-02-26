@@ -34,7 +34,7 @@ PUSH = 0b01000101  # 5
 RET = 0b00010001  # 1
 # SHL  = 0b10101100  # 12
 # SHR  = 0b10101101  # 13
-# ST   = 0b10000100  # 4
+ST = 0b10000100  # 4
 # SUB  = 0b10100001  # 1
 # XOR  = 0b10101011  # 11
 
@@ -60,17 +60,20 @@ class CPU:
         self.num_operands = None
         # branch table
         self.branchtable = {
-            ADD: self.add,
+            ADD:  self.add,
             CALL: self.call,
-            HLT: self.hlt,
-            JMP: self.jmp,
-            LDI: self.ldi,
-            MUL: self.mul,
-            POP: self.pop,
-            PRN: self.prn,
+            HLT:  self.hlt,
+            JMP:  self.jmp,
+            LDI:  self.ldi,
+            MUL:  self.mul,
+            POP:  self.pop,
+            PRN:  self.prn,
             PUSH: self.push,
-            RET: self.ret,
+            RET:  self.ret,
+            ST:   self.st,
             }
+
+    # Utility methods
 
     def ram_read(self, MAR):
         return self.ram[MAR]
@@ -95,8 +98,8 @@ class CPU:
 
     def move_pc(self):
         # grab the fifth digit of the ir
-        ir_sets_pc = ((self.ir << 3) & 255) >> 7
-        if not ir_sets_pc:
+        instruction_sets_pc = ((self.ir << 3) & 255) >> 7
+        if not instruction_sets_pc:
             self.pc += (self.num_operands + 1)
 
     # Instruction methods
@@ -144,6 +147,10 @@ class CPU:
     def ret(self):
         self.pc = self.ram[self.sp]
 
+    def st(self):
+        # Store value in regB location to ram location indicated by regA value
+        self.ram[self.reg[self.operand_a]] = self.reg[self.operand_b]
+
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
         # Enforce 8-bit max value with last line of each statement: ...& 0xFF
@@ -157,24 +164,7 @@ class CPU:
         else:
             raise Exception("Unsupported ALU operation")
 
-    def load(self, program):
-        """Load a program into memory."""
-
-        address = 0
-
-        try:
-            with open(program, 'r') as f:
-                for line in f:
-                    # strip out comment, if any, and whitespace
-                    instruction = line.split('#')[0].strip()
-                    if instruction == '':
-                        continue
-                    self.ram[address] = int(instruction, base=2)
-                    address += 1
-
-        except FileNotFoundError:
-            print(f'File not found. path: {program}')
-            sys.exit(2)
+    # Debug method
 
     def trace(self):
         """
@@ -195,6 +185,27 @@ class CPU:
             print(" %02X" % self.reg[i], end='')
 
         print()
+
+    # External methods
+
+    def load(self, program):
+        """Load a program into memory."""
+
+        address = 0
+
+        try:
+            with open(program, 'r') as f:
+                for line in f:
+                    # strip out comment, if any, and whitespace
+                    instruction = line.split('#')[0].strip()
+                    if instruction == '':
+                        continue
+                    self.ram[address] = int(instruction, base=2)
+                    address += 1
+
+        except FileNotFoundError:
+            print(f'File not found. path: {program}')
+            sys.exit(2)
 
     def run(self):
         """Run the CPU."""
