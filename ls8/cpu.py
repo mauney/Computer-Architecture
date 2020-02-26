@@ -44,6 +44,8 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
+        # ir represents the Instruction Register
+        self.ir = None
         # pc represents the Program Counter
         self.pc = 0
         # initialize the stack pointer
@@ -57,17 +59,18 @@ class CPU:
         self.operand_b = None
         self.num_operands = None
         # branch table
-        self.branchtable = {}
-        self.branchtable[ADD] = self.add
-        self.branchtable[CALL] = self.call
-        self.branchtable[HLT] = self.hlt
-        self.branchtable[JMP] = self.jmp
-        self.branchtable[LDI] = self.ldi
-        self.branchtable[MUL] = self.mul
-        self.branchtable[POP] = self.pop
-        self.branchtable[PRN] = self.prn
-        self.branchtable[PUSH] = self.push
-        self.branchtable[RET] = self.ret
+        self.branchtable = {
+            ADD: self.add,
+            CALL: self.call,
+            HLT: self.hlt,
+            JMP: self.jmp,
+            LDI: self.ldi,
+            MUL: self.mul,
+            POP: self.pop,
+            PRN: self.prn,
+            PUSH: self.push,
+            RET: self.ret,
+            }
 
     def ram_read(self, MAR):
         return self.ram[MAR]
@@ -75,9 +78,11 @@ class CPU:
     def ram_write(self, MDR, MAR):
         self.ram[MAR] = MDR
 
+    def move_pc(self):
+        self.pc += (self.num_operands + 1)
+
     def add(self):
         self.alu('ADD', self.operand_a, self.operand_b)
-        self.pc += (self.num_operands + 1)
 
     def call(self):
         # push pc + 2 onto the stack
@@ -93,11 +98,9 @@ class CPU:
 
     def ldi(self):
         self.reg[self.operand_a] = self.operand_b
-        self.pc += (self.num_operands + 1)
 
     def mul(self):
         self.alu('MUL', self.operand_a, self.operand_b)
-        self.pc += (self.num_operands + 1)
 
     def pop(self):
         if self.sp > 0xF3:
@@ -106,22 +109,18 @@ class CPU:
         else:
             self.reg[self.operand_a] = self.ram[self.sp]
             self.sp += 1
-            self.pc += (self.num_operands + 1)
 
     def prn(self):
         print(self.reg[self.operand_a])
-        self.pc += (self.num_operands + 1)
 
     def push(self):
         # move to the next position in the stack
         self.sp -= 1
         # assign the value
         self.ram[self.sp] = self.reg[self.operand_a]
-        self.pc += (self.num_operands + 1)
 
     def ret(self):
         self.pc = self.ram[self.sp]
-        self.sp += 1
 
     def load(self, program):
         """Load a program into memory."""
@@ -179,17 +178,22 @@ class CPU:
         """Run the CPU."""
         while True:
             # ir represents the Instruction Register
-            ir = self.ram_read(self.pc)
+            self.ir = self.ram_read(self.pc)
 
-            self.num_operands = ir >> 6
+            self.num_operands = self.ir >> 6
             if self.num_operands == 1:
                 self.operand_a = self.ram_read(self.pc + 1)
             elif self.num_operands == 2:
                 self.operand_a = self.ram_read(self.pc + 1)
                 self.operand_b = self.ram_read(self.pc + 2)
 
-            if ir in self.branchtable:
-                self.branchtable[ir]()
+            if self.ir in self.branchtable:
+                self.branchtable[self.ir]()
             else:
-                print(f"I did not understand that ir: {ir:b}")
+                print(f"I did not understand that ir: {self.ir:b}")
                 sys.exit(1)
+
+            # grab the fifth digit of the ir
+            ir_sets_pc = ((self.ir << 3) & 255) >> 7
+            if not ir_sets_pc:
+                self.move_pc()
