@@ -11,8 +11,8 @@ DEC  = 0b01100110  # 6
 # DIV  = 0b10100011  # 3
 HLT = 0b00000001  # 1
 INC  = 0b01100101  # 5
-# INT  = 0b01010010  # 2
-# IRET = 0b00010011  # 3
+INT  = 0b01010010  # 2
+IRET = 0b00010011  # 3
 # JEQ  = 0b01010101  # 5
 # JGE  = 0b01011010  # 10
 # JGT  = 0b01010111  # 7
@@ -68,6 +68,8 @@ class CPU:
             CALL: self.call,
             HLT:  self.hlt,
             INC:  self.inc,
+            INT:  self.int,
+            IRET: self.iret,
             JMP:  self.jmp,
             LDI:  self.ldi,
             MUL:  self.mul,
@@ -127,6 +129,12 @@ class CPU:
 
     def inc(self):
         self.alu('INC', self.operand_a)
+
+    def int(self):
+        pass
+
+    def iret(self):
+        pass
 
     def jmp(self):
         # set pc to value stored in register
