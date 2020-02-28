@@ -39,6 +39,8 @@ ST = 0b10000100  # 4
 # XOR  = 0b10101011  # 11
 
 # Other constants
+IM = 5
+IS = 6
 SP = 7  # the stack pointer is stored in the register at index 7
 
 
@@ -49,14 +51,18 @@ class CPU:
         """Construct a new CPU."""
         # ir represents the Instruction Register
         self.ir = None
-        # pc represents the Program Counter
+        # pc represents the Program Counter register
         self.pc = 0
+        # fl represents the Flag Status register
+        self.fl = 0
         # reg represents the eight general purpose registers
         self.reg = [0] * 8
         # initialize the stack pointer
         self.reg[SP] = 0xF4
         # ram represents 256 bytes of random access memory
         self.ram = [0] * 256
+        # interrupt flag
+        self.interrupts_enabled = True
         # operands
         self.operand_a = None
         self.operand_b = None
@@ -68,7 +74,7 @@ class CPU:
             CALL: self.call,
             HLT:  self.hlt,
             INC:  self.inc,
-            INT:  self.int,
+            INT:  self.intr,
             IRET: self.iret,
             JMP:  self.jmp,
             LDI:  self.ldi,
@@ -109,6 +115,26 @@ class CPU:
         if not instruction_sets_pc:
             self.pc += (self.num_operands + 1)
 
+    def check_interrupts(self):
+        masked_interrupts = self.reg[IM] & self.reg[IS]
+        for i in range(8):
+            interrupt_happened = ((masked_interrupts >> i) & 1) == 1
+            if interrupt_happened:
+                # pause interrupt checking
+                self.interrupts_enabled = False
+                # reset interrupt
+                self.reg[IS] = self.reg[IS] & (255 - 2**i)
+                # push values to the stack
+                self.reg[SP] -= 1
+                self.ram[self.reg[SP]] = self.reg[self.pc]
+                self.reg[SP] -= 1
+                self.ram[self.reg[SP]] = self.reg[self.fl]
+                for j in range(7):
+                    self.reg[SP] -= 1
+                    self.ram[self.reg[SP]] = self.reg[j]
+                # set the pc
+                self.pc = self.ram[0xF8 + i]
+
     # Instruction methods
 
     def add(self):
@@ -130,11 +156,19 @@ class CPU:
     def inc(self):
         self.alu('INC', self.operand_a)
 
-    def int(self):
-        pass
+    def intr(self):
+        interrupt = self.reg[self.operand_a]
+        self.reg[IS] = self.reg[IS] | 2**(i)
 
     def iret(self):
-        pass
+        for i in range(6, -1, -1):
+            self.reg[i] = self.ram[self.reg[SP]]
+            self.reg[SP] += 1
+        self.fl = self.ram[self.reg[SP]]
+        self.reg[SP] += 1
+        self.pc = self.ram[self.reg[SP]]
+        self.reg[SP] += 1
+        self.interrupts_enabled = True
 
     def jmp(self):
         # set pc to value stored in register
@@ -168,7 +202,7 @@ class CPU:
 
     def st(self):
         # Store value in regB location to ram location indicated by regA value
-        self.ram[self.reg[self.operand_a]] = self.reg[self.operand_b]
+        self.ram_write(self.reg[self.operand_b], self.reg[self.operand_a])
 
     def alu(self, op, reg_a, reg_b=None):
         """ALU operations."""
@@ -232,7 +266,18 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
+        import time
+        interrupt_time = time.time() + 60
+        # set to True to run interrupts.ls8
+        timer = True
         while True:
+            if timer:
+                if time.time() > interrupt_time:
+                    # Set bit 0 of the IS register (R6)
+                    self.reg[6] = self.reg[6] | 0b00000001
+                    interrupt_time = time.time() + 60
+            if self.interrupts_enabled:
+                self.check_interrupts()
             self.ir = self.ram_read(self.pc)
             self.set_operands()
             self.invoke_instruction()
