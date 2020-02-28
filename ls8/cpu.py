@@ -4,7 +4,7 @@ import sys
 
 # Instructions
 ADD = 0b10100000  # 0
-AND  = 0b10101000  # 8
+# AND  = 0b10101000  # 8
 CALL = 0b01010000  # 0
 # CMP  = 0b10100111  # 7
 DEC  = 0b01100110  # 6
